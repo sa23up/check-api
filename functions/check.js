@@ -117,14 +117,26 @@ async function checkApiKey(key, providerHint) {
  * @returns {Promise<Response>} The response.
  */
 async function handleRequest(request) {
+    // Define CORS headers
+    const corsHeaders = {
+        'Access-Control-Allow-Origin': '*', // Allow any origin
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type',
+    };
+
+    // Handle CORS preflight requests
+    if (request.method === 'OPTIONS') {
+        return new Response(null, { headers: corsHeaders });
+    }
+
     if (request.method !== 'POST') {
-        return new Response('Method Not Allowed', { status: 405 });
+        return new Response('Method Not Allowed', { status: 405, headers: corsHeaders });
     }
 
     try {
         const { keys, provider } = await request.json();
         if (!Array.isArray(keys)) {
-            return new Response('Invalid request body: "keys" should be an array.', { status: 400 });
+            return new Response('Invalid request body: "keys" should be an array.', { status: 400, headers: corsHeaders });
         }
 
         const validationPromises = keys.map(async (key) => {
@@ -134,11 +146,15 @@ async function handleRequest(request) {
 
         const results = await Promise.all(validationPromises);
 
-        return new Response(JSON.stringify(results), {
-            headers: { 'Content-Type': 'application/json' },
-        });
+        // Add CORS headers to the actual response
+        const headers = {
+            ...corsHeaders,
+            'Content-Type': 'application/json',
+        };
+
+        return new Response(JSON.stringify(results), { headers });
     } catch (error) {
-        return new Response('Invalid JSON in request body.', { status: 400 });
+        return new Response('Invalid JSON in request body.', { status: 400, headers: corsHeaders });
     }
 }
 
