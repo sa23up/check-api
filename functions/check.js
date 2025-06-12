@@ -112,55 +112,84 @@ async function checkApiKey(key, providerHint) {
 }
 
 /**
- * The main worker handler.
+ * A wrapper to handle CORS preflight (OPTIONS) requests and add CORS headers to responses.
+ * @param {function} handler The original request handler.
+ * @returns {function} A new handler that includes CORS logic.
+ */
+const corsWrapper = (handler) => {
+    return async (request, env, ctx) => {
+        // Define CORS headers that will be used for both preflight and actual requests.
+        const corsHeaders = {
+            'Access-Control-Allow-Origin': '*', // Allow any origin to access the resource.
+            'Access-Control-Allow-Methods': 'POST, OPTIONS', // Allow these methods.
+            'Access-Control-Allow-Headers': 'Content-Type', // Allow this header.
+        };
+
+        // If the request method is OPTIONS, it's a preflight request.
+        // We return a response with the CORS headers and no body.
+        if (request.method === 'OPTIONS') {
+            return new Response(null, { headers: corsHeaders });
+        }
+
+        try {
+            // For other requests (e.g., POST), call the original handler to get the response.
+            const response = await handler(request, env, ctx);
+
+            // Create a new, mutable Headers object from the original response's headers.
+            const newHeaders = new Headers(response.headers);
+
+            // Add the CORS headers to the response.
+            Object.entries(corsHeaders).forEach(([key, value]) => {
+                newHeaders.set(key, value);
+            });
+
+            // Return a new response with the original body and status, but with the new headers.
+            return new Response(response.body, {
+                status: response.status,
+                statusText: response.statusText,
+                headers: newHeaders,
+            });
+        } catch (error) {
+            // If an unhandled error occurs in the handler, catch it here.
+            console.error('Unhandled error in request handler:', error);
+            // Return a generic 500 error response, but with CORS headers so the client can read it.
+            return new Response('Internal Server Error', { status: 500, headers: corsHeaders });
+        }
+    };
+};
+
+/**
+ * The main worker handler containing the business logic.
  * @param {Request} request The incoming request.
  * @returns {Promise<Response>} The response.
  */
 async function handleRequest(request) {
-    // Define CORS headers
-    const corsHeaders = {
-        'Access-Control-Allow-Origin': '*', // Allow any origin
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type',
-    };
-
-    // Handle CORS preflight requests
-    if (request.method === 'OPTIONS') {
-        return new Response(null, { headers: corsHeaders });
-    }
-
     if (request.method !== 'POST') {
-        return new Response('Method Not Allowed', { status: 405, headers: corsHeaders });
+        return new Response('Method Not Allowed', { status: 405 });
     }
 
+    // Note: The try/catch block here handles errors within the business logic,
+    // while the one in the wrapper handles any error that might escape this.
     try {
         const { keys, provider } = await request.json();
         if (!Array.isArray(keys)) {
-            return new Response('Invalid request body: "keys" should be an array.', { status: 400, headers: corsHeaders });
+            return new Response('Invalid request body: "keys" should be an array.', { status: 400 });
         }
 
-        const validationPromises = keys.map(async (key) => {
-            const isValid = await checkApiKey(key, provider);
-            return { key, isValid };
+        // DEBUGGING: Temporarily bypass external API calls.
+        // Assume all keys are valid to test the frontend-backend communication.
+        const results = keys.map(key => ({ key, isValid: true }));
+
+        return new Response(JSON.stringify(results), {
+            headers: { 'Content-Type': 'application/json' },
         });
-
-        const results = await Promise.all(validationPromises);
-
-        // Add CORS headers to the actual response
-        const headers = {
-            ...corsHeaders,
-            'Content-Type': 'application/json',
-        };
-
-        return new Response(JSON.stringify(results), { headers });
     } catch (error) {
-        return new Response('Invalid JSON in request body.', { status: 400, headers: corsHeaders });
+        console.error("Error parsing JSON or processing request:", error);
+        return new Response('Invalid JSON in request body.', { status: 400 });
     }
 }
 
-// Export a default object containing the fetch handler
+// Export a default object containing the fetch handler, wrapped in the CORS handler.
 export default {
-    async fetch(request, env, ctx) {
-        return handleRequest(request);
-    },
+    fetch: corsWrapper(handleRequest),
 };
