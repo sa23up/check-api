@@ -71,6 +71,7 @@ function identifyProvider(key) {
 async function checkApiKey(key) {
     const provider = identifyProvider(key);
     if (!provider) {
+        console.log(`Provider not found for key starting with: ${key.substring(0, 8)}...`);
         return false;
     }
 
@@ -79,13 +80,26 @@ async function checkApiKey(key) {
     const body = typeof provider.validationBody === 'function' ? provider.validationBody() : null;
     const method = body ? 'POST' : 'GET';
 
+    // Cloudflare Workers can use `AbortController` to timeout fetch requests.
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5-second timeout
+
     try {
-        const response = await fetch(url, { method, headers, body });
-        // For most APIs, a 2xx status code means success.
-        // 401/403 means unauthorized, which for our purpose means the key is invalid or expired.
+        const response = await fetch(url, {
+            method,
+            headers,
+            body,
+            signal: controller.signal // Attach the abort signal to the fetch request
+        });
+        clearTimeout(timeoutId);
         return response.ok;
     } catch (error) {
-        console.error(`Error validating key with provider:`, error);
+        clearTimeout(timeoutId);
+        if (error.name === 'AbortError') {
+            console.error(`Request timed out for key starting with ${key.substring(0, 8)}...`);
+        } else {
+            console.error(`Error validating key starting with ${key.substring(0, 8)}...:`, error.message);
+        }
         return false;
     }
 }
