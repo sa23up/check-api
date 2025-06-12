@@ -9,9 +9,18 @@
 <body>
     <div class="container">
         <h1>AI API 密钥批量检测</h1>
-        <p>每行输入一个 API 密钥。支持 OpenAI, Anthropic, Google AI, 和 Mistral AI。</p>
+        <p>选择 API 类型，然后输入密钥进行检测。支持自动检测。</p>
+        <div class="controls">
+            <select id="providerSelect">
+                <option value="auto">自动检测所有类型</option>
+                <option value="openai">OpenAI</option>
+                <option value="anthropic">Anthropic</option>
+                <option value="google">Google AI</option>
+                <option value="mistral">Mistral AI</option>
+            </select>
+            <button id="checkKeysBtn">开始检测</button>
+        </div>
         <textarea id="apiKeys" placeholder="在此处粘贴您的 API 密钥，每行一个..."></textarea>
-        <button id="checkKeysBtn">开始检测</button>
         <div id="results"></div>
     </div>
     <script src="script.js"></script>

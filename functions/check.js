@@ -66,10 +66,17 @@ function identifyProvider(key) {
 /**
  * Checks if a single API key is valid.
  * @param {string} key The API key to validate.
+ * @param {string} providerHint A hint from the user about which provider to check.
  * @returns {Promise<boolean>} A promise that resolves to true if the key is valid, false otherwise.
  */
-async function checkApiKey(key) {
-    const provider = identifyProvider(key);
+async function checkApiKey(key, providerHint) {
+    let provider;
+    if (providerHint && providerHint !== 'auto' && providers[providerHint]) {
+        provider = providers[providerHint];
+    } else {
+        provider = identifyProvider(key);
+    }
+
     if (!provider) {
         console.log(`Provider not found for key starting with: ${key.substring(0, 8)}...`);
         return false;
@@ -115,13 +122,13 @@ async function handleRequest(request) {
     }
 
     try {
-        const { keys } = await request.json();
+        const { keys, provider } = await request.json();
         if (!Array.isArray(keys)) {
             return new Response('Invalid request body: "keys" should be an array.', { status: 400 });
         }
 
         const validationPromises = keys.map(async (key) => {
-            const isValid = await checkApiKey(key);
+            const isValid = await checkApiKey(key, provider);
             return { key, isValid };
         });
 

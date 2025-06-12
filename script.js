@@ -2,9 +2,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const apiKeysTextarea = document.getElementById('apiKeys');
     const checkKeysBtn = document.getElementById('checkKeysBtn');
     const resultsDiv = document.getElementById('results');
+    const providerSelect = document.getElementById('providerSelect');
 
     checkKeysBtn.addEventListener('click', async () => {
         const keys = apiKeysTextarea.value.trim().split('\n').filter(key => key.length > 0);
+        const provider = providerSelect.value;
         if (keys.length === 0) {
             alert('请输入至少一个 API 密钥。');
             return;
@@ -35,7 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ keys }),
+                body: JSON.stringify({ keys, provider }),
             });
 
             if (!response.ok) {
